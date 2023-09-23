@@ -14,13 +14,11 @@
             inherit system overlays;
           };
 
-        libraries = with pkgs; [
-          pkg-config
+        packages = with pkgs; [
           dbus.lib
           dbus.dev
-        ];
 
-        packages = with pkgs; [
+          pkg-config
           rust-bin.nightly.latest.default
           rust-analyzer
         ];
@@ -29,7 +27,6 @@
         devShell = pkgs.mkShell
           {
             buildInputs = packages;
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libraries;
             RUST_LOG = "trace";
           };
       });
