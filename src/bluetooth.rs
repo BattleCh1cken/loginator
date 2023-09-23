@@ -6,12 +6,13 @@ use btleplug::api::{
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures::stream::StreamExt;
 use std::error::Error;
+use std::future::Future;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::time;
 use uuid::Uuid;
 
-use crate::context;
+use crate::context::{self, Context};
 
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x08590f7edb05467e875772f6faeb13d5);
 
@@ -28,7 +29,7 @@ fn find_characteristic(brain: &Peripheral, uuid: Uuid) -> Option<Characteristic>
     None
 }
 
-type PollingFunction = fn(Vec<u8>, &mut context::Context);
+//type PollingFunction = fn(Vec<u8>, &mut context::Context) -> dyn futures::Future<Output = ()>;
 
 #[derive(Error, Debug, Clone)]
 pub enum BrainControllerError {
@@ -138,7 +139,11 @@ impl BrainController {
         Ok(())
     }
 
-    pub async fn poll(&mut self, func: PollingFunction) -> Result<(), BrainControllerError> {
+    pub async fn poll<F, Fut>(&mut self, func: F, ctx: Context) -> Result<(), BrainControllerError>
+    where
+        F: Fn(Vec<u8>, Context) -> Fut,
+        Fut: Future<Output = ()>,
+    {
         if self.connected_brain.is_none() {
             return Err(BrainControllerError::NoBrainConnected);
         }
@@ -157,7 +162,7 @@ impl BrainController {
                 brain.subscribe(&characteristic).await.unwrap();
                 let mut notification_stream = brain.notifications().await.unwrap();
                 while let Some(data) = notification_stream.next().await {
-                    func(data.value)
+                    func(data.value, ctx.clone()).await;
                 }
             }
         }

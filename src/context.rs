@@ -1,22 +1,20 @@
 use config::Config;
-use rumqttc::{Client, MqttOptions};
+use rumqttc::{AsyncClient, MqttOptions};
 
+#[derive(Debug, Clone)]
 pub struct Context {
-    pub mqtt_client: Client,
-    pub config: Config,
+    pub mqtt_client: AsyncClient,
+    //pub config: Config,
 }
 
 impl Context {
-    pub fn new() {
-        let config = Config::builder().build().unwrap();
+    pub fn new() -> Self {
+        //let config = Config::builder().build().unwrap();
 
-        let mut mqttoptions = MqttOptions::new("loginator", "localhost", 1883);
+        let mqttoptions = MqttOptions::new("loginator", "localhost", 1883);
 
-        let (mut mqtt_client, mut connection) = Client::new(mqttoptions, 10);
+        let (mqtt_client, _) = AsyncClient::new(mqttoptions, 10);
 
-        Self {
-            mqtt_client,
-            config,
-        };
+        Self { mqtt_client }
     }
 }
