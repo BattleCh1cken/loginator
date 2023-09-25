@@ -1,58 +1,58 @@
 use crate::context::Context;
+use crate::decoder::Decoder;
 use anyhow::Result;
 use regex::Regex;
+use rumqttc::{AsyncClient, Client, MqttOptions};
+use thiserror::Error;
 
 use std::collections::HashMap;
 
-pub fn decode(data: Vec<u8>) -> Result<Vec<f32>> {
-    let mut buffer = String::new();
-
-    for byte in data {
-        buffer.push(byte as char);
-    }
-    buffer = buffer.replace("\n", "");
-
-    let regex = Regex::new(r"[-+]?\d*\.\d+|[-+]?\d+").unwrap();
-
-    let mut result = vec![];
-
-    for capture in regex.captures_iter(&buffer) {
-        let number: f32 = capture.get(0).unwrap().as_str().parse()?;
-        result.push(number);
-    }
-
-    println!("{:#?}", result);
-
-    Ok(vec![0.0])
+#[derive(Error, Debug, Clone)]
+pub enum DispatchError {
+    #[error("Couldn't decode")]
+    DecodeError(),
 }
 
-pub async fn dispatch(input: Vec<u8>, ctx: Context) {
+pub async fn dispatch(input: Vec<u8>, mut ctx: Context) {
     // TODO: get these from the config
     let routes = vec![
         ("pid/linear", vec!["P", "I", "D"]),
         ("pid/angular", vec!["P", "I", "D"]),
         (
-            "left_motors/temperature",
-            vec!["First motor", "Second motor", "Third motor"],
+            "motors/temperature",
+            vec![
+                "First left motor",
+                "Second left motor",
+                "Third left motor",
+                "First right motor",
+                "Second right motor",
+                "Third right motor",
+            ],
         ),
+        ("joysticks", vec!["Left", "Right"]),
     ];
 
-    match decode(input) {
+    match ctx.decoder.push(input) {
         Err(_) => eprintln!("oopsy woopsy"),
-        Ok(data) => {
-            let mut payload = HashMap::new();
+        Ok(None) => println!("data is valid so far, but not complete yet"),
+        Ok(Some(data)) => {
+            let data = Decoder::parse(data).unwrap();
+            println!("{:?}", data);
 
+            let mut payload = HashMap::new();
             let route = &routes[data[0] as usize];
 
             for (index, label) in route.1.iter().enumerate() {
+                println!("{} {}", label, data[index + 1]);
                 payload.insert(label.to_string(), data[index + 1]);
             }
 
-            let json_data = serde_json::to_string(&route).unwrap();
+            let json_data = serde_json::to_string(&payload).unwrap();
+            println!("topic: {:?}, data: {:?}", route.0, json_data);
             let data_bytes = json_data.into_bytes();
 
             ctx.mqtt_client
-                .publish(route.0, rumqttc::QoS::AtMostOnce, false, data_bytes)
+                .publish(route.0, rumqttc::QoS::AtLeastOnce, true, data_bytes)
                 .await
                 .unwrap();
         }

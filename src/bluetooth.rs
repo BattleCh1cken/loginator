@@ -1,18 +1,16 @@
 use btleplug::api::CharPropFlags;
 use btleplug::api::{
-    bleuuid::uuid_from_u16, Central, Characteristic, Manager as _, Peripheral as _, ScanFilter,
-    WriteType,
+    Central, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType,
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures::stream::StreamExt;
-use std::error::Error;
 use std::future::Future;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::time;
 use uuid::Uuid;
 
-use crate::context::{self, Context};
+use crate::context::Context;
 
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x08590f7edb05467e875772f6faeb13d5);
 
@@ -68,23 +66,48 @@ impl BrainController {
     pub async fn search(&mut self) {
         println!("Starting scan...");
 
-        let brain_filter = ScanFilter {
-            // FIXME: this filter does not appear to work
-            services: vec![SERVICE_UUID],
-        };
-
         self.central
-            .start_scan(brain_filter)
+            .start_scan(ScanFilter::default())
             .await
             .expect("Can't scan BLE adapter for connected devices...");
         time::sleep(Duration::from_secs(2)).await;
 
-        self.available_brains = self.central.peripherals().await.unwrap();
+        let mut peripherals: Vec<Peripheral> = vec![];
+
+        for peripheral in self.central.peripherals().await.unwrap() {
+            let properties = peripheral.properties().await.unwrap().unwrap();
+            println!(
+                "Name: {:?}, Services: {:#?}",
+                properties.local_name.unwrap().clone(),
+                properties.services
+            );
+
+            if properties
+                .services
+                .iter()
+                .any(|service| service == &SERVICE_UUID)
+            {
+                peripherals.push(peripheral);
+                println!("brain found");
+            }
+        }
+
+        self.available_brains = peripherals;
     }
 
     pub async fn connect(&mut self) {
         let brain = self.available_brains[0].clone();
-        brain.connect().await;
+        let local_name = brain
+            .properties()
+            .await
+            .unwrap()
+            .unwrap()
+            .local_name
+            .unwrap();
+
+        println!("connecting to {:?}", local_name);
+
+        brain.connect().await.unwrap();
         self.connected_brain = Some(brain);
     }
     // make brain reveal code
@@ -93,6 +116,7 @@ impl BrainController {
             return Err(BrainControllerError::NoBrainConnected);
         }
         let brain = self.connected_brain.clone().unwrap();
+        brain.discover_services().await.unwrap();
 
         let characteristic = find_characteristic(&brain, SYSTEM_CHAR).unwrap();
         brain
@@ -152,7 +176,6 @@ impl BrainController {
         brain.discover_services().await.unwrap();
 
         for characteristic in brain.characteristics() {
-            println!("Checking characteristic {:?}", characteristic);
             // Subscribe to notifications from the characteristic with the selected
             // UUID.
             if characteristic.uuid == READ_CHAR
