@@ -1,3 +1,4 @@
+use anyhow::Result;
 use btleplug::api::CharPropFlags;
 use btleplug::api::{
     Central, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType,

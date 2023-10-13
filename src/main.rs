@@ -5,7 +5,9 @@ mod decoder;
 mod dispatch;
 mod tests;
 
+use futures::Future;
 use context::Context;
+use regex::Regex;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -66,7 +68,7 @@ async fn main() -> Result<()> {
                 None => context.config.brain_code.clone(),
             };
 
-            println!("Connecting to {}.", name);
+            println!("Connecting to {}", name);
             controller.connect(name).await?;
             controller.authenticate(&code).await?;
             controller.poll(dispatch::dispatch, context).await?;

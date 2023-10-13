@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum DecodeError {
     #[error("The length of the encoded data was incorrect.")]
-    InvalidLength(),
+    InvalidLength,
 }
 
 /// This struct reads a stream of COBS encoded data and decodes it.
@@ -22,18 +22,15 @@ impl Decoder {
     /// Adds a single byte for the decoder to decode.
     pub fn feed(&mut self, byte: u8) -> Result<Option<Vec<u8>>, DecodeError> {
         if !self.is_parsing {
-            //println!("found next zero: {byte}");
             self.pointer = byte as usize; // The first pointer is always the overhead byte.
             self.is_parsing = true;
         } else if byte == 0 {
-            //println!("found the end");
             // If the byte being received is zero then we know that we have all of our data
             let result = self.buffer.clone();
 
             if !(self.buffer.len() + 1 == self.pointer) {
-                //println!("the end isn't where it should be");
                 self.buffer = vec![];
-                return Err(DecodeError::InvalidLength());
+                return Err(DecodeError::InvalidLength);
             }
 
             self.buffer = vec![];
@@ -43,11 +40,8 @@ impl Decoder {
             // We have to add 1 to the length to account for the overhead byte.
             self.buffer.push(0);
             self.pointer = self.buffer.len() + byte as usize;
-            //println!("found zero: {byte}");
-            //println!("new pointer len: {}", self.pointer);
         } else {
             // If none of the other conditions are true then the data does not need to be modified at all.
-            //println!("pushing byte: {byte}");
             self.buffer.push(byte);
         }
 
@@ -65,23 +59,32 @@ impl Decoder {
         }
         Ok(None)
     }
+
     /// Expects UTF-8 as input. The data cannot be COBS encoded.
-    pub fn parse(data: Vec<u8>) -> Result<Vec<f32>> {
+    pub fn parse(data: Vec<u8>) -> Option<Vec<f32>> {
         let mut buffer = String::new();
 
         for byte in data {
             buffer.push(byte as char);
         }
+        println!("{:?}", buffer);
 
-        let regex = Regex::new(r"[-+]?\d*\.\d+|[-+]?\d+").unwrap();
+        // We only want to parse data surrounded by the telemetry identifiers
+        let regex = Regex::new(r"TELE_DEBUG:(.*?)TELE_END").unwrap();
 
-        let mut result = vec![];
+        let result = match regex.captures(&buffer) {
+            None => None,
+            Some(capture) => {
+                println!("{:?}", &capture[1]);
+                let result: Vec<f32> = capture[1]
+                    .split(",")
+                    .map(|number| number.parse::<f32>().unwrap())
+                    .collect();
+                Some(result)
+            }
+        };
+        println!("{:?}", result);
 
-        for capture in regex.captures_iter(&buffer) {
-            let number: f32 = capture.get(0).unwrap().as_str().parse()?;
-            result.push(number);
-        }
-
-        Ok(result)
+        result
     }
 }
