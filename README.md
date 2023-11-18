@@ -31,7 +31,7 @@ loginator
 ```
 The configuration file can be found at:
 - Linux: `/home/USERNAME/.config/loginator/`
-- Windows: `C:\Users/USERNAME\AppData\loginator\config\`
+- Windows: `%appdata%\loginator\config\`
 
 Once you have your config you'll need to configure it to match your brain. The first thing you'll need to do is make your V5 brain bluetooth capable. Follow [these](https://kb.vex.com/hc/en-us/articles/360044904552-Configuring-the-V5-Brain-for-Coding-over-Bluetooth) steps to enable bluetooth.
 
