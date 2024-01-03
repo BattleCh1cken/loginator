@@ -36,7 +36,7 @@ impl Context {
             }
         });
 
-        // Create the Cobs Decoder
+        // Create the COBS Decoder
         let decoder = Decoder::default();
 
         let config: Config = confy::load("loginator", "config")?;

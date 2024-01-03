@@ -5,8 +5,8 @@ mod decoder;
 mod dispatch;
 mod tests;
 
-use futures::Future;
 use context::Context;
+use futures::Future;
 use regex::Regex;
 
 use anyhow::Result;
@@ -34,8 +34,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
     let context = Context::new().await?;
+
+    let cli = Cli::parse();
 
     let mut controller = bluetooth::BrainController::new().await;
 
